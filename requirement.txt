@@ -1,0 +1,4 @@
+fpdf
+pillow
+requests
+beautifulsoup4

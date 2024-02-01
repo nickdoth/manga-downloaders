@@ -172,45 +172,63 @@ String.prototype.splic = function (f) {
 };
 
 const path = require("node:path");
-const fs = require("node:fs/promises");
+const fs = require("fs");
+const fsPromise = require("node:fs/promises");
 
 const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0";
-const pageUrl = process.argv[2]; // "https://tw.manhuagui.com/comic/51199/737805.html"
+// const pageUrl = "https://tw.manhuagui.com" + process.argv[2]; // "https://tw.manhuagui.com/comic/51199/737805.html"
 const imgServer = "https://us.hamreus.com";
 
-fetch(pageUrl, {
-    headers: {
-        "User-Agent": ua,
-        "Referer": "https://tw.manhuagui.com/",
-    }
-})
-    .then(res => res.text())
-    .then(text => text.match(/window\["\\x65\\x76\\x61\\x6c"](((?!<\/script>).)*)<\/script>/))
-    .then(matches => "(n => n)" + matches[1].trim())
-    .then(eval)
-    .then(data => data.match(/SMH\.imgData\((.*)\)\.preInit/)[1].trim())
-    .then(JSON.parse)
-    .then(async (data) => {
-        console.log(data);
-        const folderPath = path.join('./mangas/', data.bname, data.cname);
-        await fs.mkdir(folderPath, { recursive: true });
-
-        for (const filename of data.files) {
-            const fileUrl = imgServer + data.path + filename + `?e=${data.sl.e}&m=${data.sl.m}`;
-            const filePath = path.join(folderPath, filename);
-            console.log("Downloading", fileUrl);
-            console.log("Save to", filePath);
-            await fetch(fileUrl, {
-                headers: {
-                    "User-Agent": ua,
-                    "Referer": pageUrl,
-                },
-            }).then(res => res.arrayBuffer())
-                .then(buf => fs.writeFile(filePath, new Uint8Array(buf)));
-
-            await new Promise(resolve => setTimeout(resolve, 2000 + Math.floor(1000 * Math.random())));
+async function download(pageUrl){
+    await fetch(pageUrl, {
+        headers: {
+            "User-Agent": ua,
+            "Referer": "https://tw.manhuagui.com/",
         }
     })
-    ;
+        .then(res => res.text())
+        .then(text => text.match(/window\["\\x65\\x76\\x61\\x6c"](((?!<\/script>).)*)<\/script>/))
+        .then(matches => "(n => n)" + matches[1].trim())
+        .then(eval)
+        .then(data => data.match(/SMH\.imgData\((.*)\)\.preInit/)[1].trim())
+        .then(JSON.parse)
+        .then(async (data) => {
+            console.log(data);
+            const folderPath = path.join('./mangas/', data.bname, data.cname);
+            await fsPromise.mkdir(folderPath, { recursive: true });
+    
+            for (const filename of data.files) {
+                const fileUrl = imgServer + data.path + filename + `?e=${data.sl.e}&m=${data.sl.m}`;
+                const filePath = path.join(folderPath, filename);
+                console.log("Downloading", fileUrl);
+                console.log("Save to", filePath);
+                await fetch(fileUrl, {
+                    headers: {
+                        "User-Agent": ua,
+                        "Referer": pageUrl,
+                    },
+                }).then(res => res.arrayBuffer())
+                    .then(buf => fsPromise.writeFile(filePath, new Uint8Array(buf)));
+    
+                await new Promise(resolve => setTimeout(resolve, 2000 + Math.floor(1000 * Math.random())));
+            }
+        })
+        ;
+}
 
 
+var urlToDownload = 'https://tw.manhuagui.com';
+
+async function downloadImagesFromFile(inputFilePath) {
+    try {
+        const fileContent = await fsPromise.readFile(inputFilePath, "utf-8");
+        const pageUrls = fileContent.trim().split("\n");
+        for (const pageUrl of pageUrls) {
+            await download(urlToDownload + pageUrl);
+        }
+    } catch (error) {
+        console.error("Error:", error);
+    }
+}
+
+downloadImagesFromFile("to-download.txt");
